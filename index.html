@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WLED en 256 × 64</title>
+<meta name="description" content="Fork de WLED qui accepte une matrice de 256 pixels de large : deux panneaux HUB75 128 × 64 chaînés.">
+<style>
+  :root { --bg:#f7f7f5; --fg:#1d1f23; --muted:#5c616b; --card:#ffffff; --line:#dcdcd6; --accent:#0a6cc2; --warn:#8a5300; --warnbg:#fff4dc; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#111317; --fg:#e8e9ec; --muted:#a2a8b3; --card:#191c22; --line:#2b2f37; --accent:#5cb1ff; --warn:#ffcf7a; --warnbg:#33270f; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.65 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width:860px; margin:0 auto; padding:32px 16px 64px; }
+  h1 { font-size:2rem; line-height:1.2; margin:0 0 8px; }
+  h2 { font-size:1.3rem; margin:40px 0 12px; padding-bottom:6px; border-bottom:1px solid var(--line); }
+  p.lead { color:var(--muted); font-size:1.1rem; margin:0; }
+  a { color:var(--accent); }
+  blockquote { margin:0; padding:12px 18px; background:var(--card); border:1px solid var(--line); border-radius:8px; font-style:italic; }
+  .note { background:var(--warnbg); color:var(--warn); border-radius:8px; padding:12px 16px; }
+  .scroll { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; background:var(--card); font-size:.95rem; }
+  th, td { border:1px solid var(--line); padding:8px 10px; text-align:left; vertical-align:top; }
+  code { font-family:ui-monospace, "Cascadia Code", Consolas, monospace; font-size:.9em; }
+  pre { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:12px 14px; overflow-x:auto; }
+  .panels { display:grid; grid-template-columns:1fr 1fr; gap:4px; margin:16px 0 6px; }
+  .panel { aspect-ratio:2/1; border-radius:6px; display:grid; place-content:center; text-align:center; background:#0d0f13; color:#e8e9ec; border:2px solid var(--accent); font-weight:600; padding:4px; }
+  .total { text-align:center; color:var(--muted); margin:0; }
+  .gallery { display:grid; grid-template-columns:repeat(auto-fit, minmax(250px, 1fr)); gap:14px; }
+  figure { margin:0; background:var(--card); border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+  figure img { display:block; width:100%; height:auto; }
+  figure .todo { aspect-ratio:4/3; display:grid; place-content:center; text-align:center; color:var(--muted); padding:12px; }
+  figcaption { padding:8px 12px; font-size:.9rem; color:var(--muted); }
+  footer { margin-top:48px; color:var(--muted); font-size:.9rem; border-top:1px solid var(--line); padding-top:16px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>WLED en 256 × 64</h1>
+  <p class="lead">Un fork de WLED qui accepte une matrice de 256 pixels de large : deux panneaux HUB75 de 128 × 64 côte à côte.</p>
+
+  <div class="panels" role="img" aria-label="Deux panneaux de 128 par 64 pixels chaînés, soit une matrice de 256 par 64 pixels">
+    <div class="panel">Panneau 1<br>128 × 64</div>
+    <div class="panel">Panneau 2<br>128 × 64</div>
+  </div>
+  <p class="total">Une seule matrice de 256 × 64, soit 16 384 pixels</p>
+
+  <p><a href="https://github.com/Kenny3231/WLED">Code source du fork</a> · <a href="https://github.com/wled/WLED">Projet WLED d'origine</a> · <span id="pr">Proposition au projet WLED : <a href="https://github.com/wled/WLED/pull/5996">pull request n° 5996</a>, ouverte et à relire par les mainteneurs</span></p>
+
+  <h2>Le point de départ</h2>
+  <blockquote>Je voulais mettre en place deux panneaux LED de 128 × 64. Je n'ai pas pu aller plus loin : les réglages m'interdisaient de saisir 256 et, quand j'y parvenais, la valeur n'était pas prise en compte après un redémarrage. J'en ai déduit que certaines valeurs étaient codées sur 8 bits.</blockquote>
+
+  <h2>Pourquoi 256 posait problème</h2>
+  <p>Un nombre stocké sur <strong>8 bits</strong> va de <strong>0 à 255</strong>. Cela suffit pour numéroter 256 colonnes (de 0 à 255), mais pas pour écrire le nombre <strong>256</strong> lui-même : il revient à 0.</p>
+  <p>Dans WLED, la limite prenait deux formes :</p>
+  <ul>
+    <li><strong>Des variables sur 8 bits</strong>, par exemple la largeur et la hauteur d'un panneau.</li>
+    <li><strong>Un contrôle explicite</strong> au démarrage : toute dimension supérieure à 255 était refusée, et WLED repassait en bande LED classique (1D). C'est ce qui donne l'impression que la valeur n'est pas enregistrée.</li>
+  </ul>
+
+  <h2>Ce qui a été modifié</h2>
+  <p>6 fichiers, 16 lignes ajoutées et 11 retirées. Aucune fonction de WLED n'a été supprimée.</p>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Partie</th><th>Changement</th><th>Pourquoi</th></tr></thead>
+    <tbody>
+      <tr><td>Matrice 2D<br><code>FX_2Dfcn.cpp</code></td><td>Limite portée de 255 à 256</td><td>C'était le contrôle qui faisait repasser en 1D.</td></tr>
+      <tr><td>Panneaux<br><code>FX.h</code></td><td>Largeur et hauteur sur 16 bits</td><td>256 ne tient pas sur 8 bits.</td></tr>
+      <tr><td>Fichiers ledmap<br><code>FX_fcn.cpp</code></td><td>Plafond porté à 256</td><td>Une taille de 256 était réduite à 255. Non testé.</td></tr>
+      <tr><td>Page « 2D »<br><code>settings_2D.htm</code></td><td>Les champs acceptent 256</td><td>La saisie s'arrêtait à 255.</td></tr>
+      <tr><td>Transitions<br><code>FX.h</code>, <code>FX_fcn.cpp</code></td><td>Zone de découpe verticale sur 16 bits</td><td>Pour une hauteur de 256, la valeur devenait 0.</td></tr>
+      <tr><td>Effet Octopus<br><code>FX.cpp</code></td><td>Échelle jamais nulle, rayon plafonné</td><td>Au-delà de 180 pixels, l'échelle tombait à 0.</td></tr>
+      <tr><td>Aperçu en direct<br><code>ws.cpp</code></td><td>Dimensions envoyées toujours inférieures à 256</td><td>Sur de très petites matrices (ex. 256 × 4), la largeur envoyée était 0.</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>La limite est volontairement de <strong>256</strong> : rien de plus grand n'a été testé. Hormis le symptôme décrit au point de départ, ces défauts ont été repérés en lisant le code.</p>
+
+  <h2>Comment l'utiliser</h2>
+  <p><strong>Matériel testé :</strong> ESP32-S3 avec 16 Mo de flash et 8 Mo de PSRAM octale, brochage HUB75 « MoonHub75 », deux panneaux 128 × 64 chaînés (sortie du premier vers l'entrée du second).</p>
+  <p class="note">Les panneaux HUB75 consomment beaucoup de courant. Utilisez une alimentation 5 V adaptée, et ne les alimentez pas par la carte ESP32.</p>
+  <h3>1. Compiler et flasher</h3>
+  <p>Il faut <a href="https://platformio.org/">PlatformIO</a> et Node.js. Sous Windows, lancez la compilation depuis PowerShell ou l'invite de commandes : l'outil d'installation d'Espressif refuse de fonctionner sous Git Bash.</p>
+<pre><code>git clone -b wide-matrix https://github.com/Kenny3231/WLED.git
+cd WLED
+npm ci
+pio run -e esp32s3dev_16MB_opi_hub75 -t upload</code></pre>
+  <p class="note"><strong>Utilisez un dossier PlatformIO séparé.</strong> Lors des essais, la plateforme ESP32 de WLED a cassé une installation PlatformIO existante dans le dossier par défaut. Avant <code>pio run</code>, définissez la variable <code>PLATFORMIO_CORE_DIR</code>, par exemple sous PowerShell : <code>$env:PLATFORMIO_CORE_DIR = "C:\pio-wled"</code>. Les essais ont été faits sous Windows avec un tel dossier.</p>
+  <p>Avant de flasher une carte déjà configurée, sauvegardez vos réglages et vos préréglages (page « Security &amp; Updates »).</p>
+  <h3>2. Régler la sortie LED</h3>
+  <p>Dans « LED &amp; Hardware », choisissez le type <strong>HUB75 (Half Scan)</strong> avec ces valeurs. Le type de balayage dépend de vos panneaux.</p>
+  <div class="scroll">
+  <table>
+    <tbody>
+      <tr><th>Taille d'un panneau</th><td>128 × 64</td></tr>
+      <tr><th>Nombre de panneaux</th><td>2</td></tr>
+      <tr><th>Disposition (lignes × colonnes)</th><td>1 × 2</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <h3>3. Créer la matrice</h3>
+  <p>Dans « 2D Configuration », choisissez « 2D Matrix » avec <strong>un seul panneau de 256 × 64</strong>, décalage 0 × 0. Enregistrez, puis <strong>redémarrez</strong>.</p>
+  <p class="note">Après un enregistrement sur la page 2D, la couleur du segment peut devenir noire : un aplat n'affiche alors plus rien. Un redémarrage l'a rétablie lors des tests. Ce comportement a aussi été observé en 128 × 64.</p>
+
+  <h2>Ce qui a été testé</h2>
+  <ul>
+    <li>La matrice 256 × 64 est conservée après redémarrage, et l'auteur du fork a constaté une image correcte sur ses deux panneaux.</li>
+    <li>Sur le code publié : 218 effets lancés à la suite en 256 × 64 avec des transitions variées, sans redémarrage ni erreur (mémoire libre minimale : environ 102 Kio). Trois effets sont restés noirs dans l’aperçu (Image, Copy Segment, Sunrise) ; la cause probable (fichier image, second segment, démarrage sombre) n’a pas été vérifiée. Oscillate ne remplissait qu’une moitié sur la mesure courte ; mesuré plus longtemps sur une version antérieure, il couvrait les deux.</li>
+    <li>Les 16 tests du dépôt pour l'interface web réussissent.</li>
+    <li>Réglages logiciels essayés sans changer les panneaux : 128 × 64, 64 × 256, 256 × 16 et 256 × 4. Les trois derniers l'ont été sur une version antérieure, qui différait par une ligne de l'effet Octopus.</li>
+  </ul>
+  <h3>Limites connues</h3>
+  <ul>
+    <li>Une seule carte et un seul environnement de compilation ont été testés.</li>
+    <li>Le balayage des effets détecte un écran noir ou coupé en deux, pas un rendu déformé.</li>
+    <li>Non testés : fichiers ledmap de 256, plusieurs panneaux 2D séparés, dalle physique de 256 de haut, pleine luminosité sur une longue durée.</li>
+    <li>Certains effets lourds sont peu fluides sur 16 384 pixels : environ 8 à 10 images par seconde (mesuré sur une version antérieure).</li>
+  </ul>
+
+  <h2>Photos des panneaux</h2>
+  <div class="gallery">
+    <figure><img src="images/panneau-1.jpg" alt="Vue d'ensemble des deux panneaux LED"><figcaption>Vue d'ensemble</figcaption></figure>
+    <figure><img src="images/panneau-2.jpg" alt="Gros plan d'un affichage sur les panneaux LED"><figcaption>Affichage</figcaption></figure>
+    <figure><img src="images/panneau-3.jpg" alt="Câblage et carte ESP32-S3 des panneaux LED"><figcaption>Câblage et carte</figcaption></figure>
+  </div>
+
+  <h2>Transparence sur l'IA</h2>
+  <p>Le besoin, le symptôme et la vérification sur les panneaux viennent de l'auteur du fork. L'analyse du code, les modifications, les tests automatisés et la rédaction de cette page ont été réalisés avec l'aide d'un assistant IA (Claude Code).</p>
+
+  <h2 lang="en">In English</h2>
+  <p lang="en">This WLED fork accepts a 2D matrix dimension of 256 pixels, for example two chained 128 × 64 HUB75 panels. Upstream rejected any dimension above 255 and fell back to a 1D strip. Build the <code>wide-matrix</code> branch with <code>pio run -e esp32s3dev_16MB_opi_hub75</code>. The maximum is deliberately 256; only one ESP32-S3 board was tested. Developed with AI assistance.</p>
+
+  <footer>Fork personnel, sans lien officiel avec le projet WLED. WLED est développé par sa communauté et distribué sous licence <a href="https://github.com/wled/WLED/blob/main/LICENSE">EUPL-1.2</a>, qui s'applique aussi à ce fork.</footer>
+</main>
+<script>
+  // Tant qu'une photo n'est pas dans images/, afficher son nom de fichier à la place de l'image cassée.
+  document.querySelectorAll('.gallery img').forEach(function (img) {
+    function missing() {
+      var box = document.createElement('div');
+      box.className = 'todo';
+      box.textContent = 'Photo à venir (' + img.getAttribute('src') + ')';
+      img.replaceWith(box);
+    }
+    if (img.complete && !img.naturalWidth) missing();
+    else img.addEventListener('error', missing);
+  });
+</script>
+</body>
+</html>
