@@ -17,16 +17,17 @@ Un nombre sur 8 bits va de 0 à 255 : assez pour numéroter 256 colonnes, pas po
 
 ## Ce qui change
 
-Un seul commit de code, [`Allow 2D matrices with a dimension of 256 pixels`](https://github.com/wled/WLED/compare/main...Kenny3231:WLED:matrix-256) : 6 fichiers, +16 / −11 lignes. Aucune fonction de WLED n'est retirée.
+Deux commits de code ([voir le diff complet](https://github.com/wled/WLED/compare/main...Kenny3231:WLED:matrix-256)) : 6 fichiers, +66 / −25 lignes. Le second corrige des points relevés par la relecture automatique de la pull request (CodeRabbit). Aucune fonction de WLED n'est retirée.
 
 | Fichier | Changement |
 |---|---|
 | `wled00/FX_2Dfcn.cpp` | Limite de la matrice 2D portée de 255 à 256 |
 | `wled00/FX.h` | Taille des panneaux et zone de découpe verticale des transitions en 16 bits |
-| `wled00/FX_fcn.cpp` | Même découpe en 16 bits ; taille lue dans un ledmap plafonnée à 256 (non testé) |
+| `wled00/FX_fcn.cpp` | Même découpe en 16 bits ; taille lue dans un ledmap plafonnée à 256 ; ledmap trop grand pour un compteur 16 bits refusé, la matrice des panneaux est conservée |
+| `wled00/FX_2Dfcn.cpp` (second commit) | Des valeurs de panneau absurdes ne peuvent plus contourner le contrôle et écrire hors de la mémoire réservée |
 | `wled00/data/settings_2D.htm` | La page 2D accepte 256 |
 | `wled00/FX.cpp` | Effet Octopus : échelle jamais nulle au-delà de 180 pixels, rayon plafonné à 255 |
-| `wled00/ws.cpp` | Aperçu en direct : dimensions toujours inférieures à 256 (concerne les très petites matrices, ex. 256 × 4) |
+| `wled00/ws.cpp` | Aperçu en direct : dimensions inférieures à 256 et conformes aux données envoyées, quelle que soit la taille |
 
 Hormis le symptôme décrit ci-dessus, ces défauts ont été repérés en lisant le code.
 
@@ -70,7 +71,8 @@ Sauvegardez vos réglages et préréglages avant de flasher une carte déjà con
 ## Tests
 
 - Matrice 256 × 64 conservée après redémarrage ; image correcte constatée sur les deux panneaux.
-- Sur le code publié : 218 effets lancés à la suite en 256 × 64 avec des transitions variées, sans redémarrage ni erreur (mémoire libre minimale : environ 102 Kio). Trois effets sont restés noirs dans l’aperçu (Image, Copy Segment, Sunrise) ; la cause probable (fichier image, second segment, démarrage sombre) n’a pas été vérifiée. Oscillate ne remplissait qu’une moitié sur la mesure courte ; mesuré plus longtemps sur une version antérieure, il couvrait les deux.
+- Après le second commit : aperçu en direct vérifié au pixel près (256 × 64, 256 × 3, 63 × 130) ; valeurs de panneau absurdes refusées sans plantage ; ledmap 256 × 64 accepté ; ledmaps trop grands refusés en conservant la matrice 256 × 64 ; 8 préréglages lancés sans redémarrage.
+- Sur la première version publiée, avant le second commit : 218 effets lancés à la suite en 256 × 64 avec des transitions variées, sans redémarrage ni erreur (mémoire libre minimale : environ 102 Kio). Trois effets sont restés noirs dans l’aperçu (Image, Copy Segment, Sunrise) ; la cause probable (fichier image, second segment, démarrage sombre) n’a pas été vérifiée. Oscillate ne remplissait qu’une moitié sur la mesure courte ; mesuré plus longtemps sur une version antérieure, il couvrait les deux.
 - `npm test` : 16 tests réussis sur 16.
 - Réglages logiciels essayés sans changer les panneaux : 128 × 64, puis 64 × 256, 256 × 16 et 256 × 4 (ces trois derniers sur une version antérieure, différente d'une ligne dans Octopus).
 
@@ -78,7 +80,7 @@ Sauvegardez vos réglages et préréglages avant de flasher une carte déjà con
 
 - Une seule carte et un seul environnement de compilation testés.
 - Le balayage des effets détecte un écran noir ou coupé en deux, pas un rendu déformé.
-- Non testés : ledmap de 256, plusieurs panneaux 2D séparés, dalle physique de 256 de haut, pleine luminosité sur une longue durée.
+- Non testés : plusieurs panneaux 2D séparés, dalle physique de 256 de haut, pleine luminosité sur une longue durée.
 - Certains effets lourds sont peu fluides (environ 8 à 10 images par seconde, mesuré sur une version antérieure).
 - La limite est volontairement de 256.
 
