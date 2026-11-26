@@ -58,18 +58,19 @@
   </ul>
 
   <h2>Ce qui a été modifié</h2>
-  <p>6 fichiers, 16 lignes ajoutées et 11 retirées. Aucune fonction de WLED n'a été supprimée.</p>
+  <p>6 fichiers, 66 lignes ajoutées et 25 retirées, en deux commits. Aucune fonction de WLED n'a été supprimée.</p>
   <div class="scroll">
   <table>
     <thead><tr><th>Partie</th><th>Changement</th><th>Pourquoi</th></tr></thead>
     <tbody>
       <tr><td>Matrice 2D<br><code>FX_2Dfcn.cpp</code></td><td>Limite portée de 255 à 256</td><td>C'était le contrôle qui faisait repasser en 1D.</td></tr>
       <tr><td>Panneaux<br><code>FX.h</code></td><td>Largeur et hauteur sur 16 bits</td><td>256 ne tient pas sur 8 bits.</td></tr>
-      <tr><td>Fichiers ledmap<br><code>FX_fcn.cpp</code></td><td>Plafond porté à 256</td><td>Une taille de 256 était réduite à 255. Non testé.</td></tr>
+      <tr><td>Fichiers ledmap<br><code>FX_fcn.cpp</code></td><td>Plafond porté à 256 ; fichiers trop grands refusés</td><td>Une taille de 256 était réduite à 255. Au-delà de 65 535, les compteurs débordaient ; la matrice des panneaux est alors conservée.</td></tr>
       <tr><td>Page « 2D »<br><code>settings_2D.htm</code></td><td>Les champs acceptent 256</td><td>La saisie s'arrêtait à 255.</td></tr>
       <tr><td>Transitions<br><code>FX.h</code>, <code>FX_fcn.cpp</code></td><td>Zone de découpe verticale sur 16 bits</td><td>Pour une hauteur de 256, la valeur devenait 0.</td></tr>
       <tr><td>Effet Octopus<br><code>FX.cpp</code></td><td>Échelle jamais nulle, rayon plafonné</td><td>Au-delà de 180 pixels, l'échelle tombait à 0.</td></tr>
-      <tr><td>Aperçu en direct<br><code>ws.cpp</code></td><td>Dimensions envoyées toujours inférieures à 256</td><td>Sur de très petites matrices (ex. 256 × 4), la largeur envoyée était 0.</td></tr>
+      <tr><td>Aperçu en direct<br><code>ws.cpp</code></td><td>Dimensions inférieures à 256 et conformes aux données envoyées</td><td>Selon la taille, la largeur envoyée était 0, ou la dernière ligne manquait.</td></tr>
+      <tr><td>Contrôle des panneaux<br><code>FX_2Dfcn.cpp</code></td><td>Dimensions calculées dans un type assez large</td><td>Des valeurs absurdes pouvaient contourner le contrôle et écrire hors de la mémoire réservée.</td></tr>
     </tbody>
   </table>
   </div>
@@ -104,7 +105,8 @@ pio run -e esp32s3dev_16MB_opi_hub75 -t upload</code></pre>
   <h2>Ce qui a été testé</h2>
   <ul>
     <li>La matrice 256 × 64 est conservée après redémarrage, et l'auteur du fork a constaté une image correcte sur ses deux panneaux.</li>
-    <li>Sur le code publié : 218 effets lancés à la suite en 256 × 64 avec des transitions variées, sans redémarrage ni erreur (mémoire libre minimale : environ 102 Kio). Trois effets sont restés noirs dans l’aperçu (Image, Copy Segment, Sunrise) ; la cause probable (fichier image, second segment, démarrage sombre) n’a pas été vérifiée. Oscillate ne remplissait qu’une moitié sur la mesure courte ; mesuré plus longtemps sur une version antérieure, il couvrait les deux.</li>
+    <li>Après le second commit : aperçu en direct vérifié au pixel près (256 × 64, 256 × 3, 63 × 130) ; valeurs de panneau absurdes refusées sans plantage ; ledmap 256 × 64 accepté ; ledmaps trop grands refusés en conservant la matrice 256 × 64 ; 8 préréglages lancés sans redémarrage.</li>
+    <li>Sur la première version publiée, avant le second commit : 218 effets lancés à la suite en 256 × 64 avec des transitions variées, sans redémarrage ni erreur (mémoire libre minimale : environ 102 Kio). Trois effets sont restés noirs dans l’aperçu (Image, Copy Segment, Sunrise) ; la cause probable (fichier image, second segment, démarrage sombre) n’a pas été vérifiée. Oscillate ne remplissait qu’une moitié sur la mesure courte ; mesuré plus longtemps sur une version antérieure, il couvrait les deux.</li>
     <li>Les 16 tests du dépôt pour l'interface web réussissent.</li>
     <li>Réglages logiciels essayés sans changer les panneaux : 128 × 64, 64 × 256, 256 × 16 et 256 × 4. Les trois derniers l'ont été sur une version antérieure, qui différait par une ligne de l'effet Octopus.</li>
   </ul>
@@ -112,7 +114,7 @@ pio run -e esp32s3dev_16MB_opi_hub75 -t upload</code></pre>
   <ul>
     <li>Une seule carte et un seul environnement de compilation ont été testés.</li>
     <li>Le balayage des effets détecte un écran noir ou coupé en deux, pas un rendu déformé.</li>
-    <li>Non testés : fichiers ledmap de 256, plusieurs panneaux 2D séparés, dalle physique de 256 de haut, pleine luminosité sur une longue durée.</li>
+    <li>Non testés : plusieurs panneaux 2D séparés, dalle physique de 256 de haut, pleine luminosité sur une longue durée.</li>
     <li>Certains effets lourds sont peu fluides sur 16 384 pixels : environ 8 à 10 images par seconde (mesuré sur une version antérieure).</li>
   </ul>
 
